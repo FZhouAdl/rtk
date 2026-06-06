@@ -878,6 +878,15 @@ pub const RULES: &[RtkRule] = &[
         subcmd_savings: &[],
         subcmd_status: &[],
     },
+    RtkRule {
+        pattern: r"^cortex(\s|$)",
+        rtk_cmd: "rtk cortex",
+        rewrite_prefixes: &["cortex"],
+        category: "AI",
+        savings_pct: 30.0,
+        subcmd_savings: &[],
+        subcmd_status: &[],
+    },
 ];
 
 pub const IGNORED_PREFIXES: &[&str] = &[

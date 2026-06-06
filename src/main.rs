@@ -19,6 +19,7 @@ use cmds::jvm::gradlew_cmd;
 use cmds::python::{mypy_cmd, pip_cmd, pytest_cmd, ruff_cmd};
 use cmds::ruby::{rake_cmd, rspec_cmd, rubocop_cmd};
 use cmds::rust::{cargo_cmd, runner};
+use cmds::snowflake::cortex_cmd;
 use cmds::system::{
     deps, env_cmd, find_cmd, format_cmd, grep_cmd, json_cmd, local_llm, log_cmd, ls, pipe_cmd,
     read, summary, tree, wc_cmd,
@@ -376,6 +377,9 @@ enum Commands {
         /// Install GitHub Copilot integration (VS Code + CLI)
         #[arg(long)]
         copilot: bool,
+        /// Install Snowflake Cortex Code integration (global hook)
+        #[arg(long)]
+        cortex: bool,
         /// Preview changes without writing any files (combine with -v to show content)
         #[arg(long = "dry-run", conflicts_with = "show")]
         dry_run: bool,
@@ -736,6 +740,13 @@ enum Commands {
         args: Vec<String>,
     },
 
+    /// Snowflake Cortex Code CLI with token-optimized output
+    Cortex {
+        /// Cortex arguments (e.g., --version, update, mcp list, -p "prompt")
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
     /// Show hook rewrite audit metrics (requires RTK_HOOK_AUDIT=1)
     #[command(name = "hook-audit")]
     HookAudit {
@@ -775,6 +786,8 @@ enum HookCommands {
     Gemini,
     /// Process Copilot preToolUse hook (VS Code + Copilot CLI, reads JSON from stdin)
     Copilot,
+    /// Process Cortex Code PreToolUse hook (reads JSON from stdin)
+    Cortex,
     /// Check how a command would be rewritten by the hook engine (dry-run)
     Check {
         /// Target agent
@@ -1824,6 +1837,7 @@ fn run_cli() -> Result<i32> {
             uninstall,
             codex,
             copilot,
+            cortex,
             dry_run,
         } => {
             let ctx = hooks::init::InitContext {
@@ -1837,6 +1851,20 @@ fn run_cli() -> Result<i32> {
                     hooks::init::uninstall_copilot_global(ctx)?;
                 } else {
                     hooks::init::uninstall_copilot(ctx)?;
+                }
+            } else if uninstall && cortex {
+                let removed = hooks::init::uninstall_cortex(ctx)?;
+                if removed.is_empty() {
+                    println!("RTK Cortex Code support was not installed (nothing to remove)");
+                } else {
+                    println!("RTK uninstalled (Cortex Code):");
+                    for item in &removed {
+                        println!("  - {}", item);
+                    }
+                    println!("\nRestart Cortex Code CLI to apply changes.");
+                }
+                if dry_run {
+                    hooks::init::print_dry_run_footer();
                 }
             } else if uninstall {
                 uninstall_init_dispatch(
@@ -1863,6 +1891,8 @@ fn run_cli() -> Result<i32> {
                 } else {
                     hooks::init::run_copilot(ctx)?;
                 }
+            } else if cortex {
+                hooks::init::run_cortex(ctx)?;
             } else if agent == Some(AgentTarget::Pi) {
                 hooks::init::run_pi_mode(global, ctx)?
             } else if agent == Some(AgentTarget::Kilocode) {
@@ -2190,6 +2220,8 @@ fn run_cli() -> Result<i32> {
 
         Commands::Gradlew { args } => gradlew_cmd::run(&args, cli.verbose)?,
 
+        Commands::Cortex { args } => cortex_cmd::run(&args, cli.verbose)?,
+
         Commands::HookAudit { since } => {
             hooks::hook_audit_cmd::run(since, cli.verbose)?;
             0
@@ -2210,6 +2242,10 @@ fn run_cli() -> Result<i32> {
             }
             HookCommands::Copilot => {
                 hooks::hook_cmd::run_copilot()?;
+                0
+            }
+            HookCommands::Cortex => {
+                hooks::hook_cmd::run_cortex()?;
                 0
             }
             HookCommands::Check { agent: _, command } => {
@@ -2530,6 +2566,7 @@ fn is_operational_command(cmd: &Commands) -> bool {
             | Commands::Go { .. }
             | Commands::GolangciLint { .. }
             | Commands::Gt { .. }
+            | Commands::Cortex { .. }
     )
 }
 

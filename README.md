@@ -81,6 +81,17 @@ curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/instal
 cargo install --git https://github.com/rtk-ai/rtk
 ```
 
+### Build from Source (Development)
+
+To build the latest version with unreleased features (e.g., Snowflake Cortex Code support):
+
+```bash
+git clone https://github.com/rtk-ai/rtk.git
+cd rtk
+cargo install --path .
+rtk --version
+```
+
 ### Pre-built Binaries
 
 Download from [releases](https://github.com/rtk-ai/rtk/releases):
@@ -113,6 +124,7 @@ rtk init --agent kilocode       # Kilo Code
 rtk init --agent antigravity    # Google Antigravity
 rtk init -g --agent pi          # Pi
 rtk init --agent hermes         # Hermes
+rtk init -g --cortex            # Snowflake Cortex Code
 
 # 2. Restart your AI tool, then test
 git status  # Automatically rewritten to rtk git status
@@ -353,7 +365,7 @@ rtk git status
 
 ## Supported AI Tools
 
-RTK supports 14 AI coding tools. Each integration rewrites shell commands to `rtk` equivalents for 60-90% token savings where the agent supports command interception.
+RTK supports 15 AI coding tools. Each integration rewrites shell commands to `rtk` equivalents for 60-90% token savings where the agent supports command interception.
 
 | Tool | Install | Method |
 |------|---------|--------|
@@ -362,6 +374,7 @@ RTK supports 14 AI coding tools. Each integration rewrites shell commands to `rt
 | **GitHub Copilot CLI** | `rtk init -g --copilot` | PreToolUse deny-with-suggestion (CLI limitation) |
 | **Cursor** | `rtk init -g --agent cursor` | preToolUse hook (hooks.json) |
 | **Gemini CLI** | `rtk init -g --gemini` | BeforeTool hook |
+| **Snowflake Cortex Code** | `rtk init -g --cortex` | PreToolUse hook (hooks.json) |
 | **Codex** | `rtk init -g --codex` | AGENTS.md + RTK.md instructions |
 | **Windsurf** | `rtk init -g --agent windsurf` | .windsurfrules (project-scoped) |
 | **Cline / Roo Code** | `rtk init --agent cline` | .clinerules (project-scoped) |
