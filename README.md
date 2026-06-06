@@ -81,6 +81,17 @@ curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/instal
 cargo install --git https://github.com/rtk-ai/rtk
 ```
 
+### Build from Source (Development)
+
+To build the latest version with unreleased features (e.g., Snowflake Cortex Code support):
+
+```bash
+git clone https://github.com/rtk-ai/rtk.git
+cd rtk
+cargo install --path .
+rtk --version
+```
+
 ### Pre-built Binaries
 
 Download from [releases](https://github.com/rtk-ai/rtk/releases):

@@ -284,6 +284,14 @@ fn print_gemini(decision: &str, rewrite: Option<&str>) {
     let _ = writeln!(io::stdout(), "{}", gemini_json(decision, rewrite));
 }
 
+// ── Cortex Code hook ──────────────────────────────────────────
+
+/// Run the Snowflake Cortex Code PreToolUse hook.
+/// Uses the same VS Code JSON protocol as Claude Code.
+pub fn run_cortex() -> Result<()> {
+    run_claude()
+}
+
 // ── Audit logging ─────────────────────────────────────────────
 
 /// Best-effort audit log when RTK_HOOK_AUDIT=1.

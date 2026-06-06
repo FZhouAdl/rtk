@@ -39,3 +39,7 @@ pub const HERMES_PLUGINS_SUBDIR: &str = "plugins";
 pub const HERMES_PLUGIN_NAME: &str = "rtk-rewrite";
 pub const HERMES_PLUGIN_INIT_FILE: &str = "__init__.py";
 pub const HERMES_PLUGIN_MANIFEST_FILE: &str = "plugin.yaml";
+
+pub const CORTEX_DIR: &str = ".snowflake/cortex";
+/// Native Rust hook command for Snowflake Cortex Code CLI.
+pub const CORTEX_HOOK_COMMAND: &str = "rtk hook cortex";

@@ -377,6 +377,9 @@ enum Commands {
         /// Install GitHub Copilot integration (VS Code + CLI)
         #[arg(long)]
         copilot: bool,
+        /// Install Snowflake Cortex Code integration (global hook)
+        #[arg(long)]
+        cortex: bool,
         /// Preview changes without writing any files (combine with -v to show content)
         #[arg(long = "dry-run", conflicts_with = "show")]
         dry_run: bool,
@@ -783,6 +786,8 @@ enum HookCommands {
     Gemini,
     /// Process Copilot preToolUse hook (VS Code + Copilot CLI, reads JSON from stdin)
     Copilot,
+    /// Process Cortex Code PreToolUse hook (reads JSON from stdin)
+    Cortex,
     /// Check how a command would be rewritten by the hook engine (dry-run)
     Check {
         /// Target agent
@@ -1832,6 +1837,7 @@ fn run_cli() -> Result<i32> {
             uninstall,
             codex,
             copilot,
+            cortex,
             dry_run,
         } => {
             let ctx = hooks::init::InitContext {
@@ -1845,6 +1851,20 @@ fn run_cli() -> Result<i32> {
                     hooks::init::uninstall_copilot_global(ctx)?;
                 } else {
                     hooks::init::uninstall_copilot(ctx)?;
+                }
+            } else if uninstall && cortex {
+                let removed = hooks::init::uninstall_cortex(ctx)?;
+                if removed.is_empty() {
+                    println!("RTK Cortex Code support was not installed (nothing to remove)");
+                } else {
+                    println!("RTK uninstalled (Cortex Code):");
+                    for item in &removed {
+                        println!("  - {}", item);
+                    }
+                    println!("\nRestart Cortex Code CLI to apply changes.");
+                }
+                if dry_run {
+                    hooks::init::print_dry_run_footer();
                 }
             } else if uninstall {
                 uninstall_init_dispatch(
@@ -1871,6 +1891,8 @@ fn run_cli() -> Result<i32> {
                 } else {
                     hooks::init::run_copilot(ctx)?;
                 }
+            } else if cortex {
+                hooks::init::run_cortex(ctx)?;
             } else if agent == Some(AgentTarget::Pi) {
                 hooks::init::run_pi_mode(global, ctx)?
             } else if agent == Some(AgentTarget::Kilocode) {
@@ -2220,6 +2242,10 @@ fn run_cli() -> Result<i32> {
             }
             HookCommands::Copilot => {
                 hooks::hook_cmd::run_copilot()?;
+                0
+            }
+            HookCommands::Cortex => {
+                hooks::hook_cmd::run_cortex()?;
                 0
             }
             HookCommands::Check { agent: _, command } => {

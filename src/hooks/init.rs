@@ -13,7 +13,8 @@ use crate::hooks::constants::{
 };
 
 use super::constants::{
-    BEFORE_TOOL_KEY, CLAUDE_DIR, CLAUDE_HOOK_COMMAND, CODEX_DIR, CURSOR_HOOK_COMMAND,
+    BEFORE_TOOL_KEY, CLAUDE_DIR, CLAUDE_HOOK_COMMAND, CODEX_DIR, CORTEX_DIR,
+    CORTEX_HOOK_COMMAND, CURSOR_HOOK_COMMAND,
     GEMINI_HOOK_FILE, HERMES_DIR, HERMES_PLUGINS_SUBDIR, HERMES_PLUGIN_INIT_FILE,
     HERMES_PLUGIN_MANIFEST_FILE, HERMES_PLUGIN_NAME, HOOKS_JSON, HOOKS_SUBDIR,
     PI_CODING_AGENT_DIR_ENV, PI_DIR, PI_EXTENSIONS_SUBDIR, PI_LOCAL_DIR, PI_PLUGIN_FILE,
@@ -101,7 +102,7 @@ pub struct InitContext {
 }
 
 /// Shared dry-run footer printed at the end of every init sub-mode.
-fn print_dry_run_footer() {
+pub fn print_dry_run_footer() {
     println!("\n[dry-run] Nothing written.");
 }
 
@@ -3847,6 +3848,146 @@ fn uninstall_gemini(ctx: InitContext) -> Result<Vec<String>> {
 
     if verbose > 0 && !removed.is_empty() {
         eprintln!("Gemini artifacts removed");
+    }
+
+    Ok(removed)
+}
+
+// ── Cortex Code (Snowflake) integration ──────────────────────
+
+fn resolve_cortex_dir() -> Result<PathBuf> {
+    resolve_home_subdir(CORTEX_DIR)
+}
+
+/// Entry point for `rtk init -g --cortex`
+pub fn run_cortex(ctx: InitContext) -> Result<()> {
+    let InitContext { dry_run, .. } = ctx;
+
+    let cortex_dir = resolve_cortex_dir()?;
+    if !dry_run {
+        fs::create_dir_all(&cortex_dir).with_context(|| {
+            format!(
+                "Failed to create Cortex Code config dir: {}",
+                cortex_dir.display()
+            )
+        })?;
+    }
+
+    // Patch hooks.json
+    patch_cortex_hooks_json(&cortex_dir, ctx)?;
+
+    if dry_run {
+        print_dry_run_footer();
+    } else {
+        println!("\nSnowflake Cortex Code hook installed (global).\n");
+        println!("  hooks.json: {}", cortex_dir.join(HOOKS_JSON).display());
+        println!("  Restart Cortex Code CLI. Test with: git status\n");
+    }
+    Ok(())
+}
+
+/// Patch ~/.snowflake/cortex/hooks.json with the RTK PreToolUse hook
+fn patch_cortex_hooks_json(cortex_dir: &Path, ctx: InitContext) -> Result<()> {
+    let InitContext { verbose, dry_run } = ctx;
+    let hooks_path = cortex_dir.join(HOOKS_JSON);
+
+    // Read or create hooks.json
+    let mut root: serde_json::Value = if hooks_path.exists() {
+        let content = fs::read_to_string(&hooks_path)
+            .with_context(|| format!("Failed to read {}", hooks_path.display()))?;
+        serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // Check if RTK hook already present
+    if hook_already_present(&root, CORTEX_HOOK_COMMAND) {
+        if verbose > 0 {
+            eprintln!("Cortex hooks.json already has RTK hook");
+        }
+        return Ok(());
+    }
+
+    // Merge in the RTK hook entry
+    insert_hook_entry(&mut root, CORTEX_HOOK_COMMAND)?;
+
+    let content = serde_json::to_string_pretty(&root)?;
+
+    if dry_run {
+        println!(
+            "[dry-run] would write Cortex hooks.json: {}",
+            hooks_path.display()
+        );
+        if verbose > 0 {
+            println!("[dry-run] content:\n{}", content);
+        }
+        return Ok(());
+    }
+
+    // Write atomically
+    let tmp = NamedTempFile::new_in(cortex_dir)?;
+    fs::write(tmp.path(), &content)?;
+    tmp.persist(&hooks_path)
+        .with_context(|| format!("Failed to write {}", hooks_path.display()))?;
+
+    if verbose > 0 {
+        eprintln!("Patched {}", hooks_path.display());
+    }
+
+    Ok(())
+}
+
+/// Remove Cortex Code artifacts during uninstall
+pub fn uninstall_cortex(ctx: InitContext) -> Result<Vec<String>> {
+    let InitContext { verbose, dry_run } = ctx;
+    let mut removed = Vec::new();
+    let cortex_dir = match resolve_cortex_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(removed),
+    };
+
+    // Remove RTK hook from hooks.json
+    let hooks_path = cortex_dir.join(HOOKS_JSON);
+    if hooks_path.exists() {
+        let content = fs::read_to_string(&hooks_path)?;
+        if let Ok(mut root) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(arr) = root
+                .get_mut("hooks")
+                .and_then(|h| h.get_mut(PRE_TOOL_USE_KEY))
+                .and_then(|v| v.as_array_mut())
+            {
+                let before = arr.len();
+                arr.retain(|entry| {
+                    !entry
+                        .get("hooks")
+                        .and_then(|h| h.as_array())
+                        .map(|hooks| {
+                            hooks.iter().any(|hook| {
+                                hook.get("command")
+                                    .and_then(|c| c.as_str())
+                                    .is_some_and(|c| c.contains("rtk"))
+                            })
+                        })
+                        .unwrap_or(false)
+                });
+                if arr.len() < before {
+                    if dry_run {
+                        println!(
+                            "[dry-run] would remove RTK hook from Cortex hooks.json: {}",
+                            hooks_path.display()
+                        );
+                    } else {
+                        let new_content = serde_json::to_string_pretty(&root)?;
+                        fs::write(&hooks_path, new_content)?;
+                    }
+                    removed.push("Cortex hooks.json: removed RTK hook entry".to_string());
+                }
+            }
+        }
+    }
+
+    if verbose > 0 && !removed.is_empty() {
+        eprintln!("Cortex Code artifacts removed");
     }
 
     Ok(removed)
